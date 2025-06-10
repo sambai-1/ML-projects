@@ -1,5 +1,6 @@
 import torch
 from torchvision.datasets import CocoDetection
+import torchvision.transforms.functional as F
 
 class customCoco(CocoDetection):
     def __init__(self, root, annFile, transform=None):
@@ -12,6 +13,18 @@ class customCoco(CocoDetection):
         boxes = [i['bbox'] for i in anns]
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         boxes[:, 2:] += boxes[:, :2]
+
+        reg_h, reg_w = img.size
+        scale_h, scale_w = 32/reg_h, 32/reg_w
+        for i in range(len(boxes)):
+            x, y, w, h = i
+            boxes[i] = [
+            x * scale_w,
+            y * scale_h,
+            w * scale_w,
+            h * scale_h,
+            ]
+        
 
         tmp = [i.get('category_id', 1) for i in anns]
         labels = torch.as_tensor(tmp, dtype=torch.int64)
@@ -34,6 +47,8 @@ class customCoco(CocoDetection):
             'area': area,
             'iscrowd': iscrowd
         }
+
+        img = F.resize(img, (32, 32))
 
         return img, target
 
