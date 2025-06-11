@@ -1,56 +1,75 @@
-import torch
+import os
+from PIL import Image
 from torchvision.datasets import CocoDetection
 import torchvision.transforms.functional as F
+import torch
+
+
+class resize:
+    def __init__(self, size):
+        # size = (width, height)
+        self.size = size
+
+    def __call__(self, image, target):
+        orig_w, orig_h = image.size
+        new_h, new_w = self.size
+
+        image = F.resize(image, (new_h, new_w))
+
+        scale_w = new_w / orig_w
+        scale_h = new_h / orig_h
+        for ann in target:
+            x, y, w, h = ann['bbox']
+            ann['bbox'] = [
+                x * scale_w,
+                y * scale_h,
+                w * scale_w,
+                h * scale_h,
+            ]
+
+        return image, target
+
+
+class transformPair:
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def __call__(self, image, target):
+        for t in self.transforms:
+            image, target = t(image, target)
+        return image, target
+
 
 class customCoco(CocoDetection):
-    def __init__(self, root, annFile, transform=None):
-        super().__init__(root=root, annFile=annFile, transform=transform)
-        self.transforms = transform
+    def __init__(self, root, annFile, size=(32, 32), transform=None):
+        super().__init__(root, annFile, transforms=transformPair([resize(size)]))
+        self.transform = transform
 
-    def __getitem__(self, item):
-        img, anns = super().__getitem__(item)
+    def __getitem__(self, index):
+        image, target = super().__getitem__(index)
 
-        boxes = [i['bbox'] for i in anns]
-        boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        boxes[:, 2:] += boxes[:, :2]
+        if self.transform is not None:
+            image = self.transform(image)
 
-        reg_h, reg_w = img.size
-        scale_h, scale_w = 32/reg_h, 32/reg_w
-        for i in range(len(boxes)):
-            x, y, w, h = i
-            boxes[i] = [
-            x * scale_w,
-            y * scale_h,
-            w * scale_w,
-            h * scale_h,
-            ]
-        
-
-        tmp = [i.get('category_id', 1) for i in anns]
-        labels = torch.as_tensor(tmp, dtype=torch.int64)
-
-        image_id = torch.tensor([item])
-        area = torch.as_tensor(
-            [obj.get('area', (boxes[i,3]-boxes[i,1])*(boxes[i,2]-boxes[i,0]))
-             for i, obj in enumerate(anns)],
-            dtype=torch.float32
-        )
-        iscrowd = torch.as_tensor(
-            [obj.get('iscrowd', 0) for obj in anns],
-            dtype=torch.int64
-        )
-
-        target = {
-            'boxes': boxes,
-            'labels': labels,
-            'image_id': image_id,
-            'area': area,
-            'iscrowd': iscrowd
-        }
-
-        img = F.resize(img, (32, 32))
-
-        return img, target
+        return image, target
 
 def collate(batch):
-    return tuple(zip(*batch))
+    images, annots = list(zip(*batch))
+    
+    targets = []
+    for i, objs in enumerate(annots):
+        # objs is a list of dicts for image i
+        # extract bboxes and labels
+        boxes  = torch.tensor([o['bbox'] for o in objs], dtype=torch.float32)
+        labels = torch.tensor([o['category_id'] for o in objs], dtype=torch.int64)
+        # convert from [x,y,w,h] to [x_min,y_min,x_max,y_max]
+        boxes[:,2:] = boxes[:,:2] + boxes[:,2:]
+        
+        targets.append({
+            'boxes': boxes,
+            'labels': labels,
+            'image_id': torch.tensor([i]),      # optional
+            'area': torch.tensor([o['area'] for o in objs]),
+            'iscrowd': torch.tensor([o['iscrowd'] for o in objs]),
+        })
+    return list(images), targets
