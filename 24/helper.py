@@ -60,16 +60,21 @@ def collate(batch):
     for i, objs in enumerate(annots):
         # objs is a list of dicts for image i
         # extract bboxes and labels
-        boxes  = torch.tensor([o['bbox'] for o in objs], dtype=torch.float32)
-        labels = torch.tensor([o['category_id'] for o in objs], dtype=torch.int64)
+        bboxes = [i['bbox'] for i in objs]
+        labels = [i['category_id'] for i in objs]
         # convert from [x,y,w,h] to [x_min,y_min,x_max,y_max]
-        boxes[:,2:] = boxes[:,:2] + boxes[:,2:]
+        if len(bboxes) > 0:
+            bboxes = torch.tensor(bboxes, dtype=torch.float32)
+            labels = torch.tensor(labels, dtype=torch.int64)
+            bboxes[:, 2:] = bboxes[:, :2] + bboxes[:, 2:]
+            #area = torch.tensor([o['area'] for o in objs], dtype=torch.float32)
+            #iscrowd = torch.tensor([o['iscrowd'] for o in objs], dtype=torch.int64)
+        else:
+            bboxes   = torch.zeros((0, 4), dtype=torch.float32)
+            labels  = torch.zeros((0,),   dtype=torch.int64)
         
         targets.append({
-            'boxes': boxes,
+            'boxes': bboxes,
             'labels': labels,
-            'image_id': torch.tensor([i]),      # optional
-            'area': torch.tensor([o['area'] for o in objs]),
-            'iscrowd': torch.tensor([o['iscrowd'] for o in objs]),
         })
     return list(images), targets
