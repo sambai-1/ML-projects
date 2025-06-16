@@ -41,7 +41,7 @@ class transformPair:
 
 
 class customCoco(CocoDetection):
-    def __init__(self, root, annFile, size=(32, 32), transform=None):
+    def __init__(self, root, annFile, size=(128, 128), transform=None):
         super().__init__(root, annFile, transforms=transformPair([resize(size)]))
         self.transform = transform
 
