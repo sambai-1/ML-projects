@@ -54,10 +54,10 @@ class customCoco(CocoDetection):
         return image, target
 
 def collate(batch):
-    images, annots = list(zip(*batch))
+    images, annotations = list(zip(*batch))
     
     targets = []
-    for i, objs in enumerate(annots):
+    for i, objs in enumerate(annotations):
         # objs is a list of dicts for image i
         # extract bboxes and labels
         bboxes = [i['bbox'] for i in objs]
