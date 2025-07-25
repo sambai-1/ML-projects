@@ -1,1 +1,1 @@
-this is to run in wsl
+this is to run in wsl music gen and text gen as they are written with tf
